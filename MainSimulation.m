@@ -4,6 +4,7 @@ classdef MainSimulation
    properties
       spacecraft_pose_ecef_a_km 
       spacecraft_vel_ecef_a_km_s
+      spacecraft_accel_a_km_s2
       sample_time_s                   
       earth_prm_st                
       q_ecef2b                   % Body frame orientation relative to the ecef
@@ -20,9 +21,10 @@ classdef MainSimulation
       
    end
    methods
-       function obj = MainSimulation(pose_ecef_km,vel_ecef_km_s,sample_time_s,earth_prm_st,q_ecef2b,mass_kg)
+       function obj = MainSimulation(pose_ecef_km,vel_ecef_km_s,accel_ecef_km_s2,sample_time_s,earth_prm_st,q_ecef2b,mass_kg)
         obj.spacecraft_pose_ecef_a_km  = pose_ecef_km;
         obj.spacecraft_vel_ecef_a_km_s = vel_ecef_km_s;
+        obj.spacecraft_accel_a_km_s2   = accel_ecef_km_s2;
         obj.sample_time_s              = sample_time_s;
         obj.earth_prm_st               = earth_prm_st;
         obj.q_ecef2b                   = q_ecef2b;
@@ -34,20 +36,22 @@ classdef MainSimulation
        end
 
        function obj = simulate(obj, thrust_N,w_b_a_rad_s)
-
          position_magnitude_ecef_km = sqrt(obj.spacecraft_pose_ecef_a_km(1)^2 + ...
                                            obj.spacecraft_pose_ecef_a_km(2)^2 + ...
-                                           obj.spacecraft_pose_ecef_a_km(3) );
+                                           obj.spacecraft_pose_ecef_a_km(3)^2 );
 
+         gravity_vector_a            = -1 * obj.spacecraft_pose_ecef_a_km / position_magnitude_ecef_km;
 
+         obj = obj.calculate_estimation_data(gravity_vector_a);
+         
          % Drag coefficient will be calculated
-         CD                          = obj.calculate_drag_coefficient(obj.angle_of_attack_rad);
+         aoa_rad                     = obj.angle_of_attack_rad; 
+         CD                          = obj.calculate_drag_coefficient(aoa_rad);
          vel_m_s                     = obj.calculate_vel() * 1000;
          drag_force_mag              = 0.5 * obj.rho_kg_m3 * vel_m_s^2 * obj.area_m2 * CD;
          drag_vector_a_ecef_N        = [0.0,0.0,0.0]; % Equals to zero for now  
 
 
-         gravity_vector_a            = -1 * obj.spacecraft_pose_ecef_a_km / position_magnitude_ecef_km;
          thrust_vector_a_ecef_N      =  quatrotate(obj.q_b2ecef,[thrust_N,0.0, 0.0]);
          acceleration_vector_a_km_s2 = ((obj.earth_prm_st.mu_km3_s2 / (position_magnitude_ecef_km^2) * gravity_vector_a)  ) + ... % Gravitational component
                                        ((thrust_vector_a_ecef_N / obj.spacecraft_mass_kg) / 1000.0)                         + ... % Thrust component
@@ -66,20 +70,22 @@ classdef MainSimulation
          % Altitude
          obj.altitude_km = position_magnitude_ecef_km - obj.earth_prm_st.radius_km;
 
-         % Position update
-         obj.spacecraft_pose_ecef_a_km = obj.spacecraft_pose_ecef_a_km + obj.spacecraft_vel_ecef_a_km_s * obj.sample_time_s;
-
          % Velocity update
-         obj.spacecraft_vel_ecef_a_km_s = obj.spacecraft_vel_ecef_a_km_s + acceleration_vector_a_km_s2 * obj.sample_time_s;
+         vel_trap_ecef_km_s             = obj.spacecraft_vel_ecef_a_km_s + acceleration_vector_a_km_s2 * obj.sample_time_s; 
 
-         obj.calculate_estimation_data(gravity_vector_a);
+         % Position update
+         obj.spacecraft_pose_ecef_a_km = obj.spacecraft_pose_ecef_a_km + (obj.spacecraft_vel_ecef_a_km_s + vel_trap_ecef_km_s) * 0.5 * obj.sample_time_s;
+         
+         obj.spacecraft_vel_ecef_a_km_s = vel_trap_ecef_km_s;
+
+
 
        end
 
        function vel_km_s = calculate_vel(obj)
          vel_km_s = sqrt(obj.spacecraft_vel_ecef_a_km_s(1)^2 + ...
                          obj.spacecraft_vel_ecef_a_km_s(2)^2 + ...
-                         obj.spacecraft_vel_ecef_a_km_s(3) );
+                         obj.spacecraft_vel_ecef_a_km_s(3)^2 );
        end
 
        function rho_kg_m3 = calculate_air_density(obj)
@@ -94,7 +100,7 @@ classdef MainSimulation
 
        end
 
-       function CD = calculate_drag_coefficient(alpha_rad)
+       function CD = calculate_drag_coefficient(obj,alpha_rad)
            CD = 0.2 + 0.1146 * alpha_rad;
        end
 
@@ -104,7 +110,7 @@ classdef MainSimulation
 
          velocity_magnitude = sqrt(obj.spacecraft_vel_ecef_a_km_s(1)^2 + ...
                                    obj.spacecraft_vel_ecef_a_km_s(2)^2 + ...
-                                   obj.spacecraft_vel_ecef_a_km_s(3) );
+                                   obj.spacecraft_vel_ecef_a_km_s(3)^2 );
 
          velocity_direction_vec_ecef = obj.spacecraft_vel_ecef_a_km_s / velocity_magnitude;
 

@@ -7,18 +7,19 @@ addpath(genpath(cd));
 
 %% Constants
 m2km             = 1 / 1000;
-total_sim_time_s = 4000;
-sample_time_s    = 0.1;
+total_sim_time_s = 40000;
+sample_time_s    = 0.05;
 total_sim_step   = total_sim_time_s / sample_time_s;
 
 
 %% Init part
-departure_location_ecef_km   = lla2ecef([0.0,0.0,0.0]) * m2km;
-departure_velocity_ecef_km_s = [0.0,0.0,0.0];
+departure_location_ecef_km   = lla2ecef([0.0,0.0,500.0]) * m2km* 0 + [earth_prm_st.radius_km + 500,0,0];
+departure_velocity_ecef_km_s = [0.0,orbit_velocity_km_s,0.0];
+departure_accel_ecef_km_s2   = [0.0,0.0,0.0];
 q_ecef2b                     = [1.0, 0.0, 0.0, 0.0];
 mass_kg                      = 730 * 1000; 
 
-MS = MainSimulation(departure_location_ecef_km,departure_velocity_ecef_km_s,sample_time_s, earth_prm_st,q_ecef2b,mass_kg);
+MS = MainSimulation(departure_location_ecef_km,departure_velocity_ecef_km_s,departure_accel_ecef_km_s2,sample_time_s, earth_prm_st,q_ecef2b,mass_kg);
 
 
 %% Data Holders
@@ -30,7 +31,7 @@ fp_angle_arr_deg   = zeros(total_sim_step,1);
 
 %% Simulation Loop
 for i=1:total_sim_step
-    MS = MS.simulate(9600000, [0.0,0.0,0.0]);
+    MS = MS.simulate(9600000 * 0, [0.0,0.0,0.0]);
 
     ecef_position_a_km(i,:) = MS.spacecraft_pose_ecef_a_km;
     vel_a_km_s(i,1) = MS.calculate_vel();
@@ -65,3 +66,18 @@ ylabel('alpha')
 subplot('223')
 plot(fp_angle_arr_deg)
 ylabel('gamma')
+
+lla_arr = ecef2lla(ecef_position_a_km * 1000);
+figure;
+subplot('311')
+plot(lla_arr(:,1))
+ylabel('Lat')
+
+subplot('311')
+plot(lla_arr(:,2))
+ylabel('Lon')
+
+subplot('313')
+plot(lla_arr(:,3))
+ylabel('Alt')
+

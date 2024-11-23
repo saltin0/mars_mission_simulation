@@ -1,10 +1,48 @@
 %% This file contains parameters about the celestial objects and orbits
+%% Time Calculations
+t = datetime(2035, 6, 1, 0, 0, 0); % Belirli tarih ve saat
+
+% Dünya'nın konumu (Güneş'e göre)
+au = 149597871;
+earth_pos = planetEphemeris(juliandate(t), 'SolarSystem', 'Earth') / au;
+
+% Mars'ın konumu (Güneş'e göre)
+mars_pos = planetEphemeris(juliandate(t), 'SolarSystem', 'Mars') / au;
+
+% Sonuçları göster (km cinsinden)
+fprintf('Dünya Konumu: [%.2f, %.2f, %.2f] km\n', earth_pos);
+fprintf('Mars Konumu: [%.2f, %.2f, %.2f] km\n', mars_pos);
+
+e = earth_pos(1:2);
+
+m = mars_pos(1:2);
+
+me_dot = dot(m,e);
+phase_angle_deg = acosd(me_dot/ (norm(e) * norm(m)));
+%% 
 earth_prm_st              = struct;
 earh_parking_orbit_prm_st = struct;
 % ballistic_orbit_prm_st    = struct;
 %% Struct definitions
-earth_prm_st.radius_km  = 6378  ; % [km]
-earth_prm_st.mu_km3_s2  = 398600; % [km^3/s^2]
+sun_prm_st.mu_km3_s2    = 1.32712e11; 
+
+earth_prm_st.radius_km  = 6378  ;   % [km]
+earth_prm_st.mu_km3_s2  = 398600;   % [km^3/s^2]
+earth_prm_st.a_km       = 149.6e6; % Semimajor axis of earth
+v_earth_km_s            = sqrt(sun_prm_st.mu_km3_s2 / earth_prm_st.a_km);
+w_earth_deg_s           = (360) / ((2 * pi * earth_prm_st.a_km) / v_earth_km_s)
+
+
+mars_prm_st.mass_kg     = 641.9e21;    % [kg]
+mars_prm_st.radius_m    = 3396  ;    % [m]
+mars_prm_st.a_km        = 227.956e6; % [km]
+v_mars_km_s             = sqrt(sun_prm_st.mu_km3_s2 / mars_prm_st.a_km);
+w_mars_deg_s            = (360) / ((2 * pi * mars_prm_st.a_km) / v_mars_km_s)
+
+
+t_catch_s = 365.2296 / abs(w_earth_deg_s - w_mars_deg_s);
+t_catch_days = t_catch_s / (24 * 3600)
+
 
 % Earth parking orbit parameters - Circular orbits
 earh_parking_orbit_prm_st.radius_km     = earth_prm_st.radius_km + 500; % [km] --> Design criteria
@@ -24,6 +62,6 @@ earh_parking_orbit_prm_st.velocity_km_s = orbit_velocity_km_s ;
 % e   = ((h^2 / (mu * ra)) - 1) / cosd(true_anomaly_apogee_deg); 
 
 
-ballistic_orbit_prm_st.eccentricity = e;
+% ballistic_orbit_prm_st.eccentricity = e;
 
 
