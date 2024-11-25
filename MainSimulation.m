@@ -14,6 +14,7 @@ classdef MainSimulation
       angle_of_attack_rad
       flight_path_angle_rad
       rho_kg_m3
+      gravity_force_N
 
       % The data below is just for simulation
       area_m2
@@ -31,14 +32,21 @@ classdef MainSimulation
         obj.q_b2ecef                   = quatinv(q_ecef2b);
         obj.spacecraft_mass_kg         = mass_kg;
 
+        obj.angle_of_attack_rad        = 0.0;
+        obj.flight_path_angle_rad      = pi/2;
+
         obj.area_m2                    = pi * 2.5^2;
         obj.Cd_coef                    = 0.2;
+        position_magnitude_ecef_km     = norm(obj.spacecraft_pose_ecef_a_km);
+        obj.gravity_force_N            = (obj.earth_prm_st.mu_km3_s2 / (position_magnitude_ecef_km^2))* 1000 * mass_kg;
+
+        gravity_vector_a            = -1 * obj.spacecraft_pose_ecef_a_km / position_magnitude_ecef_km;
+
+        obj = obj.calculate_estimation_data(gravity_vector_a);
        end
 
        function obj = simulate(obj, thrust_N,w_b_a_rad_s)
-         position_magnitude_ecef_km = sqrt(obj.spacecraft_pose_ecef_a_km(1)^2 + ...
-                                           obj.spacecraft_pose_ecef_a_km(2)^2 + ...
-                                           obj.spacecraft_pose_ecef_a_km(3)^2 );
+         position_magnitude_ecef_km = norm(obj.spacecraft_pose_ecef_a_km);
 
          gravity_vector_a            = -1 * obj.spacecraft_pose_ecef_a_km / position_magnitude_ecef_km;
 
@@ -63,7 +71,8 @@ classdef MainSimulation
          % Orientation update 
          q_w_b = [0,w_b_a_rad_s(1),w_b_a_rad_s(2),w_b_a_rad_s(3)];
          q_ecef2b_dot = 0.5 * quatmultiply(obj.q_ecef2b,q_w_b);
-         obj.q_ecef2b = obj.q_ecef2b + q_ecef2b_dot * obj.sample_time_s;
+         q_ecef2b     = obj.q_ecef2b;
+         obj.q_ecef2b = q_ecef2b + q_ecef2b_dot * obj.sample_time_s;
          obj.q_ecef2b = quatnormalize(obj.q_ecef2b);
          obj.q_b2ecef = quatinv(obj.q_ecef2b); 
 
@@ -77,6 +86,10 @@ classdef MainSimulation
          obj.spacecraft_pose_ecef_a_km = obj.spacecraft_pose_ecef_a_km + (obj.spacecraft_vel_ecef_a_km_s + vel_trap_ecef_km_s) * 0.5 * obj.sample_time_s;
          
          obj.spacecraft_vel_ecef_a_km_s = vel_trap_ecef_km_s;
+
+         obj.spacecraft_mass_kg = max(130000, obj.spacecraft_mass_kg - 1250 * obj.sample_time_s);
+
+         obj.gravity_force_N            = (obj.earth_prm_st.mu_km3_s2 / (position_magnitude_ecef_km^2))* 1000 * obj.spacecraft_mass_kg;
 
 
 
@@ -108,18 +121,22 @@ classdef MainSimulation
          % Angle of attack calculation
          body_x_vector_ecef = quatrotate(obj.q_b2ecef,[1.0,0.0, 0.0]);
 
-         velocity_magnitude = sqrt(obj.spacecraft_vel_ecef_a_km_s(1)^2 + ...
-                                   obj.spacecraft_vel_ecef_a_km_s(2)^2 + ...
-                                   obj.spacecraft_vel_ecef_a_km_s(3)^2 );
+         velocity_magnitude = norm(obj.spacecraft_vel_ecef_a_km_s);
 
          velocity_direction_vec_ecef = obj.spacecraft_vel_ecef_a_km_s / velocity_magnitude;
+         velocity_direction_vec_body = quatrotate(obj.q_ecef2b,[velocity_direction_vec_ecef(1),...
+                                                                velocity_direction_vec_ecef(2),...
+                                                                velocity_direction_vec_ecef(3)]);
 
-         cp = cross(body_x_vector_ecef,velocity_direction_vec_ecef);
-         obj.angle_of_attack_rad = asin(sqrt(cp(1)^2 + cp(2)^2 + cp(3)^2));
+         cp = cross([1.0,0.0,0.0],velocity_direction_vec_body);
+         dp = dot([1.0,0.0,0.0],velocity_direction_vec_body);
+         obj.angle_of_attack_rad = acos(dp) * sign(cp(3)) * -1 ;
 
          % Flight path angle
          cp = cross(gravity_vector_a, velocity_direction_vec_ecef);
          obj.flight_path_angle_rad = pi/2 - asin(sqrt(cp(1)^2 + cp(2)^2 + cp(3)^2));
+
+         obj.altitude_km = norm(obj.spacecraft_pose_ecef_a_km) - obj.earth_prm_st.radius_km;
 
          % Air density
          obj.rho_kg_m3 = obj.calculate_air_density();
