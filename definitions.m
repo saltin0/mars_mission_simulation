@@ -36,8 +36,9 @@ w_earth_deg_s           = (360) / ((2 * pi * earth_prm_st.a_km) / v_earth_km_s)
 mars_prm_st.mass_kg     = 641.9e21;    % [kg]
 mars_prm_st.radius_m    = 3396  ;    % [m]
 mars_prm_st.a_km        = 227.956e6; % [km]
+mars_prm_st.inclination_rad = 1.845 * pi / 180; 
 v_mars_km_s             = sqrt(sun_prm_st.mu_km3_s2 / mars_prm_st.a_km);
-w_mars_deg_s            = (360) / ((2 * pi * mars_prm_st.a_km) / v_mars_km_s)
+w_mars_deg_s            = (360) / ((2 * pi * mars_prm_st.a_km) / v_mars_km_s);
 
 
 t_catch_s = 365.2296 / abs(w_earth_deg_s - w_mars_deg_s);

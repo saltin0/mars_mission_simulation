@@ -19,7 +19,7 @@ omega_rad_s = 0.0;
 
 
 %% Init part
-departure_location_ecef_km   = lla2ecef([0.0,0.0,500.0]) * m2km* 1 + 0 *[earth_prm_st.radius_km + 500,0,0];
+departure_location_ecef_km   = lla2ecef([0.0,0.0,500.0]) * m2km* 0 + 1 *[earth_prm_st.radius_km,0,0];
 departure_velocity_ecef_km_s = [1/ 1000,0.0,0.0]*1 + 0*[0.0,earh_parking_orbit_prm_st.velocity_km_s,0.0] ;
 departure_accel_ecef_km_s2   = [0.0,0.0,0.0];
 q_ecef2b                     = [1.0, 0.0, 0.0, 0.0];
