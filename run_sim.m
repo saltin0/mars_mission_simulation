@@ -19,7 +19,7 @@ omega_rad_s = 0.0;
 
 
 %% Init part
-departure_location_ecef_km   = lla2ecef([0.0,0.0,500.0]) * m2km* 1 + 0 *[earth_prm_st.radius_km + 500,0,0];
+departure_location_ecef_km   = lla2ecef([0.0,0.0,500.0]) * m2km* 0 + 1 *[earth_prm_st.radius_km,0,0];
 departure_velocity_ecef_km_s = [1/ 1000,0.0,0.0]*1 + 0*[0.0,earh_parking_orbit_prm_st.velocity_km_s,0.0] ;
 departure_accel_ecef_km_s2   = [0.0,0.0,0.0];
 q_ecef2b                     = [1.0, 0.0, 0.0, 0.0];
@@ -42,6 +42,7 @@ pitch_arr_deg       = zero_arr;
 thrust_arr_N        = zero_arr;
 altitude_arr_km     = zero_arr;
 vel_cmd_arr_km_s    = zero_arr;
+T_arr               = zero_arr;
 
 %% Simulation Loop
 for i=1:total_sim_step
@@ -84,6 +85,7 @@ for i=1:total_sim_step
     thrust_arr_N(i,1)    = thrust_N;
     altitude_arr_km(i,1) = MS.altitude_km;
     vel_cmd_arr_km_s(i,1) = vel_cmd_m_s;
+    T_arr(i,1)            = MS.time_s;
 end
 
 %% Plot 
@@ -103,21 +105,23 @@ figure; hold on;
 azz = 0:0.01:2*pi;
 plot3(ecef_position_a_km(:,1),ecef_position_a_km(:,2),ecef_position_a_km(:,3),'LineWidth',2,'Color','r')
 plot3(earth_prm_st.radius_km * cos(azz),earth_prm_st.radius_km * sin(azz),(earth_prm_st.radius_km * sin(azz)*0),'LineWidth',2,'Color','b')
-
+grid minor
+xlabel("ECEF - x")
+ylabel("ECEF - y")
 pilot_graphs;
 
-lla_arr = ecef2lla(ecef_position_a_km * 1000);
-figure;
-subplot('311')
-plot(lla_arr(:,1))
-ylabel('Lat')
-
-subplot('312')
-plot(lla_arr(:,2))
-ylabel('Lon')
-
-subplot('313')
-plot(lla_arr(:,3))
-ylabel('Alt')
+% lla_arr = ecef2lla(ecef_position_a_km * 1000);
+% figure;
+% subplot('311')
+% plot(lla_arr(:,1))
+% ylabel('Lat')
+% 
+% subplot('312')
+% plot(lla_arr(:,2))
+% ylabel('Lon')
+% 
+% subplot('313')
+% plot(lla_arr(:,3))
+% ylabel('Alt')
 
 

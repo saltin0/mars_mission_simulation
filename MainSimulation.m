@@ -26,6 +26,7 @@ classdef MainSimulation
       % The data below is just for simulation
       area_m2
       Cd_coef
+      time_s
       
    end
    methods
@@ -57,6 +58,8 @@ classdef MainSimulation
 
         obj.spacecraft_pose_eci_a_km   = quatrotate(obj.q_ecef2eci,obj.spacecraft_pose_ecef_a_km );
         obj.spacecraft_vel_eci_a_km_s  = quatrotate(obj.q_ecef2eci,obj.spacecraft_vel_ecef_a_km_s);
+
+        obj.time_s = 0;
 
         obj = obj.calculate_estimation_data(gravity_vector_a);
        end
@@ -117,7 +120,7 @@ classdef MainSimulation
 
          obj.gravity_force_N            = (obj.earth_prm_st.mu_km3_s2 / (position_magnitude_ecef_km^2))* 1000 * obj.spacecraft_mass_kg;
 
-
+        obj.time_s = obj.time_s + obj.sample_time_s;
 
        end
 
