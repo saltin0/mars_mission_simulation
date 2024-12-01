@@ -1,4 +1,13 @@
 %{
+version : 0.4
+author  : saltin0, enes
+date    : 1.12.2024 - Sunday
+
+Description : 
+- Velocity profile and controller is implemented.
+%}
+
+%{
 version : 0.3
 author  : saltin0, enes
 date    : 25.11.2024 - Monday

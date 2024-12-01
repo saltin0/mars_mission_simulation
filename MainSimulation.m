@@ -5,16 +5,23 @@ classdef MainSimulation
       spacecraft_pose_ecef_a_km 
       spacecraft_vel_ecef_a_km_s
       spacecraft_accel_a_km_s2
+      spacecraft_pose_eci_a_km
+      spacecraft_vel_eci_a_km_s
       sample_time_s                   
       earth_prm_st                
       q_ecef2b                   % Body frame orientation relative to the ecef
       q_b2ecef
+      q_eci2b
+      q_b2eci
+      q_ecef2eci
+      q_eci2ecef
       spacecraft_mass_kg  
       altitude_km
       angle_of_attack_rad
       flight_path_angle_rad
       rho_kg_m3
       gravity_force_N
+      earth_w_rad_s
 
       % The data below is just for simulation
       area_m2
@@ -23,6 +30,9 @@ classdef MainSimulation
    end
    methods
        function obj = MainSimulation(pose_ecef_km,vel_ecef_km_s,accel_ecef_km_s2,sample_time_s,earth_prm_st,q_ecef2b,mass_kg)
+        obj.earth_w_rad_s              = 0.0000727; % Angular velocity of earth around its own axis
+        earth_axis_tilt_deg            = 23.5;
+        obj.q_ecef2eci                 = [cosd(earth_axis_tilt_deg/2), 1 * sind(earth_axis_tilt_deg / 2),0.0,0];
         obj.spacecraft_pose_ecef_a_km  = pose_ecef_km;
         obj.spacecraft_vel_ecef_a_km_s = vel_ecef_km_s;
         obj.spacecraft_accel_a_km_s2   = accel_ecef_km_s2;
@@ -31,6 +41,9 @@ classdef MainSimulation
         obj.q_ecef2b                   = q_ecef2b;
         obj.q_b2ecef                   = quatinv(q_ecef2b);
         obj.spacecraft_mass_kg         = mass_kg;
+        obj.q_eci2ecef                 = quatinv(obj.q_ecef2eci);
+        obj.q_eci2b                    = quatmultiply(obj.q_eci2ecef, obj.q_ecef2b);
+        obj.q_b2eci                    = quatinv(obj.q_eci2b);
 
         obj.angle_of_attack_rad        = 0.0;
         obj.flight_path_angle_rad      = pi/2;
@@ -40,12 +53,15 @@ classdef MainSimulation
         position_magnitude_ecef_km     = norm(obj.spacecraft_pose_ecef_a_km);
         obj.gravity_force_N            = (obj.earth_prm_st.mu_km3_s2 / (position_magnitude_ecef_km^2))* 1000 * mass_kg;
 
-        gravity_vector_a            = -1 * obj.spacecraft_pose_ecef_a_km / position_magnitude_ecef_km;
+        gravity_vector_a               = -1 * obj.spacecraft_pose_ecef_a_km / position_magnitude_ecef_km;
+
+        obj.spacecraft_pose_eci_a_km   = quatrotate(obj.q_ecef2eci,obj.spacecraft_pose_ecef_a_km );
+        obj.spacecraft_vel_eci_a_km_s  = quatrotate(obj.q_ecef2eci,obj.spacecraft_vel_ecef_a_km_s);
 
         obj = obj.calculate_estimation_data(gravity_vector_a);
        end
 
-       function obj = simulate(obj, thrust_N,w_b_a_rad_s)
+       function obj = simulate(obj, thrust_N,w_b_a_rad_s,delta_v_a_km_s)
          position_magnitude_ecef_km = norm(obj.spacecraft_pose_ecef_a_km);
 
          gravity_vector_a            = -1 * obj.spacecraft_pose_ecef_a_km / position_magnitude_ecef_km;
@@ -76,6 +92,13 @@ classdef MainSimulation
          obj.q_ecef2b = quatnormalize(obj.q_ecef2b);
          obj.q_b2ecef = quatinv(obj.q_ecef2b); 
 
+         % Eci 2 Ecef propogation
+         q_eci2ecef_dot = [0.0, 0.0, 0.0, obj.earth_w_rad_s];
+         obj.q_eci2ecef = obj.q_eci2ecef + q_eci2ecef_dot * obj.sample_time_s;
+
+         obj.q_eci2b     = quatmultiply(obj.q_eci2ecef,obj.q_ecef2b);
+         obj.q_b2eci     = quatinv(obj.q_eci2b);
+
          % Altitude
          obj.altitude_km = position_magnitude_ecef_km - obj.earth_prm_st.radius_km;
 
@@ -85,9 +108,12 @@ classdef MainSimulation
          % Position update
          obj.spacecraft_pose_ecef_a_km = obj.spacecraft_pose_ecef_a_km + (obj.spacecraft_vel_ecef_a_km_s + vel_trap_ecef_km_s) * 0.5 * obj.sample_time_s;
          
-         obj.spacecraft_vel_ecef_a_km_s = vel_trap_ecef_km_s;
+         obj.spacecraft_vel_ecef_a_km_s = vel_trap_ecef_km_s + delta_v_a_km_s;
 
          obj.spacecraft_mass_kg = max(130000, obj.spacecraft_mass_kg - 1250 * obj.sample_time_s);
+
+         obj.spacecraft_pose_eci_a_km   = quatrotate(obj.q_ecef2eci,obj.spacecraft_pose_ecef_a_km );
+         obj.spacecraft_vel_eci_a_km_s  = quatrotate(obj.q_ecef2eci,obj.spacecraft_vel_ecef_a_km_s);
 
          obj.gravity_force_N            = (obj.earth_prm_st.mu_km3_s2 / (position_magnitude_ecef_km^2))* 1000 * obj.spacecraft_mass_kg;
 

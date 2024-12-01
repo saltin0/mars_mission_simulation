@@ -2,9 +2,11 @@
 figure;tiledlayout(3,3)
 
 % First plot
-ax1 = nexttile;
-plot(vel_a_km_s)
+ax1 = nexttile; 
+plot(vel_a_km_s);hold on;
+plot(vel_cmd_arr_km_s);
 ylabel('Vel')
+legend("Est","Cmd")
 
 % Second plot
 ax2 = nexttile;

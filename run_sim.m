@@ -24,22 +24,24 @@ departure_velocity_ecef_km_s = [1/ 1000,0.0,0.0]*1 + 0*[0.0,earh_parking_orbit_p
 departure_accel_ecef_km_s2   = [0.0,0.0,0.0];
 q_ecef2b                     = [1.0, 0.0, 0.0, 0.0];
 mass_kg                      = 730 * 1000; 
-
+parking_orbit_altitude_km    = earh_parking_orbit_prm_st.radius_km - earth_prm_st.radius_km;
 MS = MainSimulation(departure_location_ecef_km,departure_velocity_ecef_km_s,departure_accel_ecef_km_s2,sample_time_s, earth_prm_st,q_ecef2b,mass_kg);
 
 
 %% Data Holders
+zero_arr            = zeros(total_sim_step,1);
 ecef_position_a_km  = zeros(total_sim_step,3);
-vel_a_km_s          = zeros(total_sim_step,1);
-aoa_arr_deg         = zeros(total_sim_step,1);
-fp_angle_arr_deg    = zeros(total_sim_step,1);
-gamma_cmd_arr_deg   = zeros(total_sim_step,1);
-gamma_dot_cmd_deg_s = zeros(total_sim_step,1);
-alpha_cmd_deg       = zeros(total_sim_step,1);
-omega_arr_deg_s     = zeros(total_sim_step,1);
-pitch_arr_deg       = zeros(total_sim_step,1);
-thrust_arr_N        = zeros(total_sim_step,1);
-altitude_arr_km     = zeros(total_sim_step,1);
+vel_a_km_s          = zero_arr;
+aoa_arr_deg         = zero_arr;
+fp_angle_arr_deg    = zero_arr;
+gamma_cmd_arr_deg   = zero_arr;
+gamma_dot_cmd_deg_s = zero_arr;
+alpha_cmd_deg       = zero_arr;
+omega_arr_deg_s     = zero_arr;
+pitch_arr_deg       = zero_arr;
+thrust_arr_N        = zero_arr;
+altitude_arr_km     = zero_arr;
+vel_cmd_arr_km_s    = zero_arr;
 
 %% Simulation Loop
 for i=1:total_sim_step
@@ -52,17 +54,20 @@ for i=1:total_sim_step
 
     [thrust_N,omega_rad_s,...
      gamma_cmd_rad,gamma_dot_cmd_rad_s,...
-     alfa_cmd_rad,C] = C.fp_vel_control(ref_velocity_km_s     , ...
-                                      velocity_vector_a_km_s, ...
-                                      gamma_rad             , ...
-                                      aoa_rad               , ...
-                                      altitude_km           , ....
-                                      0.0                   , ...
-                                      gravity_force_N       , ...
-                                      max_thrust_N          , ...
-                                      MS.spacecraft_mass_kg);
+     alfa_cmd_rad,vel_cmd_m_s,delta_v_a_km_s,...
+     C] = C.fp_vel_control(ref_velocity_km_s     , ...
+                           velocity_vector_a_km_s, ...
+                           gamma_rad             , ...
+                           aoa_rad               , ...
+                           altitude_km           , ....
+                           0.0                   , ...
+                           gravity_force_N       , ...
+                           max_thrust_N          , ...
+                           MS.spacecraft_mass_kg ,...
+                           parking_orbit_altitude_km, ...
+                           MS.spacecraft_pose_ecef_a_km);
 
-    MS = MS.simulate(thrust_N , [0.0,0.0,omega_rad_s]);
+    MS = MS.simulate(thrust_N , [0.0,0.0,omega_rad_s],delta_v_a_km_s);
 
 
 
@@ -78,6 +83,7 @@ for i=1:total_sim_step
     pitch_arr_deg(i,1)   = euler(1);
     thrust_arr_N(i,1)    = thrust_N;
     altitude_arr_km(i,1) = MS.altitude_km;
+    vel_cmd_arr_km_s(i,1) = vel_cmd_m_s;
 end
 
 %% Plot 
