@@ -1,4 +1,14 @@
 %{
+version : 0.5.100
+author  : saltin0, enes
+date    : 1.1.2025 - Wednesday
+
+Description : 
+- Magnetometer model and EKF calibration algorithm is 
+  implemented.
+%}
+
+%{
 version : 0.5
 author  : saltin0, enes
 date    : 1.12.2024 - Sunday

@@ -1,8 +1,12 @@
 classdef Controller
+    % Estimator Ref : 
     properties
         flight_path_angle_rad
         gravity_turn_init_altitude_km
         controller_stage
+        P_EKF
+        b_MAG
+        D_MAG
 
     end
     
@@ -74,9 +78,9 @@ classdef Controller
             if (altitude_km >= earth_parking_orbit_alt_km)
                 if (0 == obj.controller_stage)
                     obj.controller_stage = 1; % Now we are in parking orbit
-                    parking_orbit_vel_direction = quatrotate([cosd(45),0.0,0.0,sind(45)],position_vector_direction_ecef);
+                    parking_orbit_vel_direction = quatrotate([cosd(-45),0.0,0.0,sind(-45)],position_vector_direction_ecef);
                     parking_orbit_vel_a_km_s    = parking_orbit_vel_direction * ref_velocity_km_s;
-                    delta_v_a_km_s              = parking_orbit_vel_a_km_s - velocity_vector_a_km_s;
+                    delta_v_a_km_s              = (parking_orbit_vel_a_km_s - velocity_vector_a_km_s);
 
                 end
             end
@@ -88,6 +92,55 @@ classdef Controller
             end
 
 
+
+        end
+
+        function obj = estimator(obj,B_true_ECEF, B_mes_BODY)
+            if (1 == obj.controller_stage)
+                S = [B_mes_BODY(1)^2, B_mes_BODY(2)^2, ...
+                     B_mes_BODY(3)^2, 2*B_mes_BODY(1)*B_mes_BODY(2),...
+                     2*B_mes_BODY(1)*B_mes_BODY(3), 2*B_mes_BODY(2)*B_mes_BODY(3)];
+            
+                D = [obj.D_MAG(1) obj.D_MAG(4) obj.D_MAG(5);...
+                     obj.D_MAG(4) obj.D_MAG(2) obj.D_MAG(6);...
+                     obj.D_MAG(5) obj.D_MAG(6) obj.D_MAG(3)];
+    
+                J = [B_mes_BODY(1)*obj.b_MAG(1), ...
+                     B_mes_BODY(2)*obj.b_MAG(2), ...
+                     B_mes_BODY(3)*obj.b_MAG(3), ...
+                     B_mes_BODY(1)*obj.b_MAG(2)+B_mes_BODY(2)*obj.b_MAG(1), ...
+                     B_mes_BODY(1)*obj.b_MAG(3)+B_mes_BODY(3)*obj.b_MAG(1), ...
+                     B_mes_BODY(2)*obj.b_MAG(3)+B_mes_BODY(3)*obj.b_MAG(2)];
+    
+               dEdD = [2*(1+obj.D_MAG(1)), 0, 0, 2*obj.D_MAG(4), 2*obj.D_MAG(5), 0;
+                       0, 2*(1+obj.D_MAG(2)), 0, 2*obj.D_MAG(4), 0, 2*obj.D_MAG(6);
+                       0, 0, 2*(1+obj.D_MAG(3)), 0, 2*obj.D_MAG(5), 2*obj.D_MAG(6);
+                       obj.D_MAG(4), obj.D_MAG(4), 0 2+obj.D_MAG(1)+obj.D_MAG(2), obj.D_MAG(6), obj.D_MAG(5);
+                       obj.D_MAG(5), 0, obj.D_MAG(5), obj.D_MAG(6), 2+obj.D_MAG(1)+obj.D_MAG(3), obj.D_MAG(4);
+                       0, obj.D_MAG(6), obj.D_MAG(6), obj.D_MAG(5), obj.D_MAG(4), 2+obj.D_MAG(2)+obj.D_MAG(3)];
+    
+               H = [2*B_mes_BODY'*(eye(3)+D)-2*obj.b_MAG', -S*dEdD+2*J];
+    
+               R = 300^2;
+               A = eye(9);
+               Q = 0;
+    
+               % Prediction
+               xk  =  [obj.b_MAG;obj.D_MAG];
+               xk1 = A * xk;
+    
+               obj.P_EKF = A*obj.P_EKF*A' + Q;
+    
+               % Correction
+               hxk         = -1*B_mes_BODY'*(2*D+D*D)*B_mes_BODY + 2*B_mes_BODY'*(eye(3)+D)*obj.b_MAG-norm(obj.b_MAG)^2;
+               Observation = norm(B_mes_BODY)^2 - norm(B_true_ECEF)^2;
+               K         = obj.P_EKF*H'/(H*obj.P_EKF*H' + R);
+               x_est     = xk1 + K*(Observation - H*xk1);
+               obj.P_EKF = obj.P_EKF - K*H*obj.P_EKF;
+    
+               obj.b_MAG = reshape(x_est(1:3),[3,1]);
+               obj.D_MAG = reshape(x_est(4:end),[6,1]);
+            end
 
         end
 

@@ -7,9 +7,10 @@ addpath(genpath(cd));
 
 %% Constants
 m2km             = 1 / 1000;
-total_sim_time_s = 500*0 + 1 * 10000;
-sample_time_s    = 0.05;
+total_sim_time_s = 500*0 + 1 * 8000;
+sample_time_s    = 0.05 *2;
 total_sim_step   = total_sim_time_s / sample_time_s;
+
 
 %% 
 max_thrust_N = 9600000;
@@ -17,6 +18,11 @@ C = Controller();
 thrust_N    = 0.0;
 omega_rad_s = 0.0;
 
+%% Initial Estirmator Parameters
+C.b_MAG = [0.0,0.0,0.0]';
+C.D_MAG = [2.0,1.0,2.0,1.0,1.0,1.0]'*0;
+C.P_EKF = [1000*eye(3) zeros(3,6);
+           zeros(6,3)  0.001*eye(6)];
 
 %% Init part
 departure_location_ecef_km   = lla2ecef([0.0,0.0,500.0]) * m2km* 0 + 1 *[earth_prm_st.radius_km,0,0];
@@ -43,7 +49,10 @@ thrust_arr_N        = zero_arr;
 altitude_arr_km     = zero_arr;
 vel_cmd_arr_km_s    = zero_arr;
 T_arr               = zero_arr;
-
+mag_mes_ECEF        = ecef_position_a_km;
+mag_mes_body        = ecef_position_a_km;
+bias_est            = ecef_position_a_km;
+non_orth_est        = zeros(total_sim_step,6);
 %% Simulation Loop
 for i=1:total_sim_step
     altitude_km            = MS.altitude_km;
@@ -70,6 +79,13 @@ for i=1:total_sim_step
 
     MS = MS.simulate(thrust_N , [0.0,0.0,omega_rad_s],delta_v_a_km_s);
 
+    [MS, B_true_BODY, B_mes_BODY, B_true_ECEF] = MS.magnetometer_model();
+
+%     body_mag_diff = norm(B_true_BODY) - norm(B_mes_BODY)
+
+    C = C.estimator(B_true_ECEF, B_mes_BODY);
+
+
 
 
     ecef_position_a_km(i,:) = MS.spacecraft_pose_ecef_a_km;
@@ -86,21 +102,14 @@ for i=1:total_sim_step
     altitude_arr_km(i,1) = MS.altitude_km;
     vel_cmd_arr_km_s(i,1) = vel_cmd_m_s;
     T_arr(i,1)            = MS.time_s;
+    mag_mes_ECEF(i,:)     = B_true_ECEF';
+    mag_mes_body(i,:)     = B_mes_BODY';
+    bias_est    (i,:)     = reshape(C.b_MAG,[1,3]);
+    non_orth_est(i,:)     = reshape(C.D_MAG,[1,6]);
 end
 
-%% Plot 
-% % Dünya haritasını yükle
-% earthImage = imread('earthimage.jpg'); 
-% 
-% [lat, lon] = meshgrid(-90:1:90, -180:1:180); 
-% [xe, ye, ze] = sph2cart(deg2rad(lon), deg2rad(lat), earth_prm_st.radius_km); 
-% 
-% figure;
-% surface(xe, ye, ze, flipud(earthImage), 'FaceColor', 'texturemap', 'EdgeColor', 'none');
-% axis equal;
-% xlabel('X'); ylabel('Y'); zlabel('Z');
-% title('LEO');
-% hold on;
+%% Plot States
+
 figure; hold on;
 azz = 0:0.01:2*pi;
 plot3(ecef_position_a_km(:,1),ecef_position_a_km(:,2),ecef_position_a_km(:,3),'LineWidth',2,'Color','r')
@@ -110,18 +119,31 @@ xlabel("ECEF - x")
 ylabel("ECEF - y")
 pilot_graphs;
 
-% lla_arr = ecef2lla(ecef_position_a_km * 1000);
-% figure;
-% subplot('311')
-% plot(lla_arr(:,1))
-% ylabel('Lat')
-% 
-% subplot('312')
-% plot(lla_arr(:,2))
-% ylabel('Lon')
-% 
-% subplot('313')
-% plot(lla_arr(:,3))
-% ylabel('Alt')
+
+%% Visualize Orbit
+figure;
+plot3(ecef_position_a_km(:,1),ecef_position_a_km(:,2),ecef_position_a_km(:,3),'LineWidth',2,'Color','r')
+hold on;
+plot_arr = 1:10000:size(ecef_position_a_km,1);
+mag_mes_ECEF_ = mag_mes_ECEF / 10;
+quiver3(ecef_position_a_km(plot_arr,1),ecef_position_a_km(plot_arr,2),ecef_position_a_km(plot_arr,3), ...
+    mag_mes_ECEF_(plot_arr,1), mag_mes_ECEF_(plot_arr,2), mag_mes_ECEF_(plot_arr,3), ...
+            0, 'LineWidth', 1, 'MaxHeadSize', 0.5); % 3D ok çizimi
+
+hold on;
+
+% Earth Plot
+[earth_x, earth_y, earth_z] = sphere(50);
+surf(earth_x * 6371, earth_y * 6371, earth_z * 6371, 'FaceColor', 'c', 'EdgeColor', 'none', 'FaceAlpha', 0.5);
+axis equal;
+grid on;
+xlabel('X (km)');
+ylabel('Y (km)');
+zlabel('Z (km)');
+title('Celestial Object in Parking Orbit');
+legend('Orbit', 'Magnetometer Measurements','Earth');
+
+%% Plot Magnetometer
+plot_magnetometer;
 
 

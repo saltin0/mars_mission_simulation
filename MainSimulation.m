@@ -171,5 +171,37 @@ classdef MainSimulation
          obj.rho_kg_m3 = obj.calculate_air_density();
     
        end
+
+       function [obj, B_true_BODY, B_mes_BODY, B_true_ECEF] = magnetometer_model(obj)
+         bias_vector_nT = [5000,3000,6000] * 1;
+         noise_vector_nT = randn(3,1) * 300 * 1;
+         non_orth_matrix  = [0.05, 0.05, 0.05;...
+                             0.05, 0.1 , 0.05;...
+                             0.05, 0.05, 0.05] * 1; % Non orthogonality matrix
+
+         I                = eye(3);
+         pose = obj.spacecraft_pose_ecef_a_km * 1000;
+         lla = ecef2lla(pose, 'WGS84');
+         lat = lla(1); lon = lla(2); alt = lla(3);
+         [B_true_NED,~,~,~,~] = igrfmagm(alt,lat,lon,decyear(2015,7,4),13); % B_true in NED frame
+         B_true_NED = reshape(B_true_NED,[3,1]);
+         % Transfrom to ENU
+         R_NED2ENU = [0, 1,  0;
+                      1, 0,  0;
+                      0, 0, -1];
+         B_true_ENU = R_NED2ENU * B_true_NED;
+
+         R_ENU2ECEF = [-sin(lon), -sin(lat)*cos(lon), cos(lat)*cos(lon);
+                        cos(lon), -sin(lat)*sin(lon), cos(lat)*sin(lon);
+                               0,           cos(lat),          sin(lat)]; 
+
+         B_true_ECEF = R_ENU2ECEF * B_true_ENU;
+
+         B_true_BODY = quatrotate(obj.q_ecef2b, B_true_ECEF' );
+
+         B_mes_BODY = inv(I + non_orth_matrix)*(B_true_BODY' + bias_vector_nT' + noise_vector_nT); %#ok<MINV> 
+         
+
+       end
    end
 end
