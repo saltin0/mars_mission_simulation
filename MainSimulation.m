@@ -27,6 +27,7 @@ classdef MainSimulation
       area_m2
       Cd_coef
       time_s
+      bias_vector_nT
       
    end
    methods
@@ -60,11 +61,12 @@ classdef MainSimulation
         obj.spacecraft_vel_eci_a_km_s  = quatrotate(obj.q_ecef2eci,obj.spacecraft_vel_ecef_a_km_s);
 
         obj.time_s = 0;
+        obj.bias_vector_nT = [5000,3000,6000] * 1;
 
         obj = obj.calculate_estimation_data(gravity_vector_a);
        end
 
-       function obj = simulate(obj, thrust_N,w_b_a_rad_s,delta_v_a_km_s)
+       function obj = simulate(obj, thrust_N,w_b_a_rad_s,delta_v_a_km_s, reset_orientation)
          position_magnitude_ecef_km = norm(obj.spacecraft_pose_ecef_a_km);
 
          gravity_vector_a            = -1 * obj.spacecraft_pose_ecef_a_km / position_magnitude_ecef_km;
@@ -79,7 +81,11 @@ classdef MainSimulation
          drag_vector_a_ecef_N        = [0.0,0.0,0.0]; % Equals to zero for now  
 
 
-         thrust_vector_a_ecef_N      =  quatrotate(obj.q_b2ecef,[thrust_N,0.0, 0.0]);
+         if (isreal(thrust_N))
+             thrust_vector_a_ecef_N      =  quatrotate(obj.q_b2ecef,[thrust_N,0.0, 0.0]);
+         else
+             thrust_vector_a_ecef_N      =  quatrotate(obj.q_b2ecef,[0.0,0.0, 0.0]);
+         end
          acceleration_vector_a_km_s2 = ((obj.earth_prm_st.mu_km3_s2 / (position_magnitude_ecef_km^2) * gravity_vector_a)  ) + ... % Gravitational component
                                        ((thrust_vector_a_ecef_N / obj.spacecraft_mass_kg) / 1000.0)                         + ... % Thrust component
                                        ((drag_vector_a_ecef_N   / obj.spacecraft_mass_kg) / 1000.0);                              % Drag component (equals to zero for now)
@@ -121,6 +127,10 @@ classdef MainSimulation
          obj.gravity_force_N            = (obj.earth_prm_st.mu_km3_s2 / (position_magnitude_ecef_km^2))* 1000 * obj.spacecraft_mass_kg;
 
         obj.time_s = obj.time_s + obj.sample_time_s;
+
+        if (true == reset_orientation)
+            obj.q_ecef2b = [1.0, 0.0, 0.0, 0.0];
+        end
 
        end
 
@@ -172,9 +182,14 @@ classdef MainSimulation
     
        end
 
-       function [obj, B_true_BODY, B_mes_BODY, B_true_ECEF] = magnetometer_model(obj)
-         bias_vector_nT = [5000,3000,6000] * 1;
+       function [obj, B_true_BODY, B_mes_BODY, B_true_ECEF, B_mes_ECEF] = magnetometer_model(obj,bias_type)
          noise_vector_nT = randn(3,1) * 300 * 1;
+
+         if (1 == bias_type)
+             obj.bias_vector_nT = obj.bias_vector_nT + noise_vector_nT' * obj.sample_time_s;
+         end
+           
+         bias_vector_nT = obj.bias_vector_nT; 
          non_orth_matrix  = [0.05, 0.05, 0.05;...
                              0.05, 0.1 , 0.05;...
                              0.05, 0.05, 0.05] * 1; % Non orthogonality matrix
@@ -200,6 +215,7 @@ classdef MainSimulation
          B_true_BODY = quatrotate(obj.q_ecef2b, B_true_ECEF' );
 
          B_mes_BODY = inv(I + non_orth_matrix)*(B_true_BODY' + bias_vector_nT' + noise_vector_nT); %#ok<MINV> 
+         B_mes_ECEF = quatrotate(obj.q_b2ecef, reshape(B_mes_BODY,[1,3]));
          
 
        end

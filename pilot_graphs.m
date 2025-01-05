@@ -31,7 +31,7 @@ legend(['Cmd'])
 grid minor
 % 5 plot
 ax5 = nexttile;
-plot(T_arr,omega_arr_deg_s,'LineWidth',2)
+plot(T_arr,omega_arr_deg_s(:,3),'LineWidth',2)
 ylabel('omega')
 legend(['Cmd'])
 grid minor
